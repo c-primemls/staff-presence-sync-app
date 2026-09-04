@@ -1,0 +1,16 @@
+{
+	"compatibility_date": "2025-10-08",
+	"main": "src/index.ts",
+	"name": "staff-presence-sync-app",
+	"upload_source_maps": true,
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_id": "870d36b7-b99d-4e3f-8d42-fc93492199d1",
+			"database_name": "staff_presence"
+		}
+	],
+	"observability": {
+		"enabled": true
+	}
+}
