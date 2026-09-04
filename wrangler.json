@@ -3,6 +3,7 @@
 	"main": "src/index.ts",
 	"name": "staff-presence-sync-app",
 	"upload_source_maps": true,
+
 	"d1_databases": [
 		{
 			"binding": "DB",
@@ -10,6 +11,13 @@
 			"database_name": "staff_presence"
 		}
 	],
+
+	"triggers": {
+		"crons": [
+			"* * * * *"
+		]
+	},
+
 	"observability": {
 		"enabled": true
 	}
