@@ -60,24 +60,120 @@ async function processRingCentralWebhook(
   );
 }
 
+// export async function handleRingCentralWebhook(
+//   request: Request,
+//   env: Env,
+//   ctx: ExecutionContext,
+// ): Promise<Response> {
+//   const headers = Object.fromEntries(request.headers.entries());
+
+//   //   const validationToken = request.headers.get("Validation-Token");
+
+//   const validationToken = headers["validation-token"] ?? null;
+
+//   /*
+//    * Initial RingCentral webhook validation.
+//    *
+//    * RingCentral generates this token.
+//    * We simply echo it back.
+//    */
+//   if (validationToken) {
+//     console.log("RingCentral webhook validation request received.");
+
+//     return new Response(null, {
+//       status: 200,
+//       headers: {
+//         "Validation-Token": validationToken,
+//         "Content-Type": "application/json",
+//       },
+//     });
+//   }
+
+//   /*
+//    * Normal webhook notification.
+//    *
+//    * This is OUR secret configured as
+//    * deliveryMode.verificationToken.
+//    */
+//   //   const verificationToken = request.headers.get("Verification-Token");
+
+//   const verificationToken = headers["verification-token"] ?? null;
+
+//   if (!verificationToken) {
+//     console.error(
+//       "Rejected RingCentral webhook: Verification-Token header is missing.",
+//     );
+
+//     return new Response("Unauthorized", {
+//       status: 401,
+//     });
+//   }
+
+//   if (verificationToken !== env.RC_WEBHOOK_VERIFICATION_TOKEN) {
+//     console.error(
+//       "Rejected RingCentral webhook: verification token mismatch.",
+//       {
+//         receivedLength: verificationToken.length,
+//         expectedLength: env.RC_WEBHOOK_VERIFICATION_TOKEN?.length ?? 0,
+//       },
+//     );
+
+//     return new Response("Unauthorized", {
+//       status: 401,
+//     });
+//   }
+
+//   const rawBody = await request.text();
+
+//   if (!rawBody.trim()) {
+//     return new Response(null, {
+//       status: 200,
+//     });
+//   }
+
+//   let event: RingCentralPresenceEvent;
+
+//   try {
+//     event = JSON.parse(rawBody) as RingCentralPresenceEvent;
+//   } catch {
+//     return new Response("Invalid JSON", {
+//       status: 400,
+//     });
+//   }
+
+//   ctx.waitUntil(processRingCentralWebhook(env, event));
+
+//   return new Response(null, {
+//     status: 200,
+//   });
+// }
+
 export async function handleRingCentralWebhook(
   request: Request,
   env: Env,
   ctx: ExecutionContext,
 ): Promise<Response> {
-  const headers = Object.fromEntries(request.headers.entries());
+  const validationToken = request.headers.get("Validation-Token");
 
-  //   const validationToken = request.headers.get("Validation-Token");
-
-  const validationToken = headers["validation-token"] ?? null;
+  const rawBody = await request.text();
 
   /*
-   * Initial RingCentral webhook validation.
+   * Subscription validation handshake.
    *
-   * RingCentral generates this token.
-   * We simply echo it back.
+   * RingCentral sends an empty request containing
+   * a Validation-Token. We echo that exact value.
    */
-  if (validationToken) {
+  if (!rawBody.trim()) {
+    if (!validationToken) {
+      console.error(
+        "RingCentral validation request contained no Validation-Token.",
+      );
+
+      return new Response("Bad Request", {
+        status: 400,
+      });
+    }
+
     console.log("RingCentral webhook validation request received.");
 
     return new Response(null, {
@@ -90,18 +186,15 @@ export async function handleRingCentralWebhook(
   }
 
   /*
-   * Normal webhook notification.
+   * Normal notification.
    *
-   * This is OUR secret configured as
-   * deliveryMode.verificationToken.
+   * For Subscription API webhooks, RingCentral
+   * sends the validationToken we supplied when
+   * creating the subscription.
    */
-  //   const verificationToken = request.headers.get("Verification-Token");
-
-  const verificationToken = headers["verification-token"] ?? null;
-
-  if (!verificationToken) {
+  if (!validationToken) {
     console.error(
-      "Rejected RingCentral webhook: Verification-Token header is missing.",
+      "Rejected RingCentral webhook: Validation-Token header is missing.",
     );
 
     return new Response("Unauthorized", {
@@ -109,25 +202,24 @@ export async function handleRingCentralWebhook(
     });
   }
 
-  if (verificationToken !== env.RC_WEBHOOK_VERIFICATION_TOKEN) {
+  if (!env.RC_WEBHOOK_VALIDATION_TOKEN) {
     console.error(
-      "Rejected RingCentral webhook: verification token mismatch.",
-      {
-        receivedLength: verificationToken.length,
-        expectedLength: env.RC_WEBHOOK_VERIFICATION_TOKEN?.length ?? 0,
-      },
+      "RC_WEBHOOK_VALIDATION_TOKEN is missing from the Worker environment.",
     );
 
-    return new Response("Unauthorized", {
-      status: 401,
+    return new Response("Server configuration error", {
+      status: 500,
     });
   }
 
-  const rawBody = await request.text();
+  if (validationToken !== env.RC_WEBHOOK_VALIDATION_TOKEN) {
+    console.error("Rejected RingCentral webhook: validation token mismatch.", {
+      receivedLength: validationToken.length,
+      expectedLength: env.RC_WEBHOOK_VALIDATION_TOKEN.length,
+    });
 
-  if (!rawBody.trim()) {
-    return new Response(null, {
-      status: 200,
+    return new Response("Unauthorized", {
+      status: 401,
     });
   }
 
@@ -136,6 +228,8 @@ export async function handleRingCentralWebhook(
   try {
     event = JSON.parse(rawBody) as RingCentralPresenceEvent;
   } catch {
+    console.error("RingCentral webhook contained invalid JSON.");
+
     return new Response("Invalid JSON", {
       status: 400,
     });

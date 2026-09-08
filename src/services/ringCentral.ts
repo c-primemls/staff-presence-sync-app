@@ -104,7 +104,7 @@ export async function createRingCentralWebhookSubscription(
 
           address: webhookAddress,
 
-          validationToken: env.RC_WEBHOOK_VERIFICATION_TOKEN,
+          validationToken: env.RC_WEBHOOK_VALIDATION_TOKEN,
         },
 
         expiresIn: 604799,
