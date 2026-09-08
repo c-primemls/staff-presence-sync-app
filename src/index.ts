@@ -106,15 +106,6 @@ export default {
     }
 
     if (url.pathname === "/api/sync-ringcentral") {
-      if (request.method !== "POST") {
-        return new Response("Method Not Allowed", {
-          status: 405,
-          headers: {
-            Allow: "POST",
-          },
-        });
-      }
-
       try {
         const result = await syncRingCentralPresence(env);
 
