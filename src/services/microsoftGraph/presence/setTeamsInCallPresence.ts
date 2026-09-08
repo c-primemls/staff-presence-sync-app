@@ -18,7 +18,7 @@ export async function setTeamsInCallPresence(
         sessionId: env.MS_CLIENT_ID,
         availability: "Busy",
         activity: "InACall",
-        expirationDuration: "PT5M",
+        expirationDuration: "PT1H",
       }),
     },
   );

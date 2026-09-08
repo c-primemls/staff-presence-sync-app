@@ -2,6 +2,8 @@ import { updateRingCentralPresenceFromWebhook } from "../db/presence";
 
 import { markRingCentralWebhookReceived } from "../db/runtime";
 
+import { applyRingCentralTelephonyStatusToTeams } from "../sync/ringCentralToTeams/applyRingCentralTelephonyStatusToTeams";
+
 type RingCentralPresenceEvent = {
   uuid?: string;
   event?: string;
@@ -48,6 +50,40 @@ async function processRingCentralWebhook(
 
   await markRingCentralWebhookReceived(env);
 
+  let teamsResult;
+
+  try {
+    teamsResult = await applyRingCentralTelephonyStatusToTeams(
+      env,
+      String(extensionId),
+      event.body?.telephonyStatus,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    console.error("RingCentral to Teams sync failed:", {
+      extensionId,
+      telephonyStatus: event.body?.telephonyStatus,
+      error: message,
+    });
+
+    teamsResult = {
+      action: "error",
+      reason: message,
+    };
+  }
+
+  // console.log(
+  //   "RingCentral presence webhook processed:",
+  //   JSON.stringify({
+  //     extensionId,
+  //     telephonyStatus: event.body?.telephonyStatus,
+  //     presenceStatus: event.body?.presenceStatus,
+  //     sequence: event.body?.sequence,
+  //     rowsUpdated: changes,
+  //   }),
+  // );
+
   console.log(
     "RingCentral presence webhook processed:",
     JSON.stringify({
@@ -56,6 +92,7 @@ async function processRingCentralWebhook(
       presenceStatus: event.body?.presenceStatus,
       sequence: event.body?.sequence,
       rowsUpdated: changes,
+      teamsAction: teamsResult.action,
     }),
   );
 }
