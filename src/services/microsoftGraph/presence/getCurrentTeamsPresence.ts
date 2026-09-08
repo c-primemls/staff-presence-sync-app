@@ -1,19 +1,26 @@
-export async function getMicrosoftAccessToken(env: Env): Promise<string> {
-  const body = new URLSearchParams({
-    client_id: env.MS_CLIENT_ID,
-    client_secret: env.MS_CLIENT_SECRET,
-    scope: "https://graph.microsoft.com/.default",
-    grant_type: "client_credentials",
-  });
+import { getMicrosoftAccessToken } from "../auth/getMicrosoftAccessToken";
+
+export async function getCurrentTeamsPresence(
+  env: Env,
+  userIds: string[],
+): Promise<GraphPresence[]> {
+  if (!userIds.length) {
+    return [];
+  }
+
+  const accessToken = await getMicrosoftAccessToken(env);
 
   const response = await fetch(
-    `https://login.microsoftonline.com/${env.MS_TENANT_ID}/oauth2/v2.0/token`,
+    "https://graph.microsoft.com/v1.0/communications/getPresencesByUserId",
     {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
       },
-      body,
+      body: JSON.stringify({
+        ids: userIds,
+      }),
     },
   );
 
@@ -21,19 +28,13 @@ export async function getMicrosoftAccessToken(env: Env): Promise<string> {
     const text = await response.text();
 
     throw new Error(
-      `Microsoft token request failed: ${response.status} ${text}`,
+      `Microsoft Graph presence request failed: ${response.status} ${text}`,
     );
   }
 
   const data = (await response.json()) as {
-    access_token?: string;
+    value?: GraphPresence[];
   };
 
-  if (!data.access_token) {
-    throw new Error(
-      "Microsoft token response did not contain an access token.",
-    );
-  }
-
-  return data.access_token;
+  return data.value ?? [];
 }

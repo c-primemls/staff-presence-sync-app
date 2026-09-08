@@ -1,6 +1,6 @@
 import { getTeamsSyncUsers, updateTeamsPresenceBatch } from "../db/presence";
 
-import { getTeamsPresence } from "../services/microsoftGraph";
+import { getCurrentTeamsPresence } from "../services/microsoftGraph/presence/getCurrentTeamsPresence";
 
 export async function syncTeamsPresence(env: Env) {
   const users = await getTeamsSyncUsers(env);
@@ -17,7 +17,7 @@ export async function syncTeamsPresence(env: Env) {
     .map((user) => user.entra_user_id)
     .filter((id): id is string => Boolean(id));
 
-  const presenceResults = await getTeamsPresence(env, userIds);
+  const presenceResults = await getCurrentTeamsPresence(env, userIds);
 
   const usersByEntraId = new Map(
     users
