@@ -47,6 +47,15 @@ export type RingCentralPresence = {
   meetingStatus?: string;
 };
 
+export type RingCentralSubscription = {
+  id: string;
+  status?: string;
+  creationTime?: string;
+  expirationTime?: string;
+  expiresIn?: number;
+  eventFilters?: string[];
+};
+
 export async function getRingCentralPresence(
   env: Env,
   extensionId: string,
@@ -71,4 +80,45 @@ export async function getRingCentralPresence(
   }
 
   return (await response.json()) as RingCentralPresence;
+}
+
+export async function createRingCentralWebhookSubscription(
+  env: Env,
+  webhookAddress: string,
+): Promise<RingCentralSubscription> {
+  const accessToken = await getRingCentralAccessToken(env);
+
+  const response = await fetch(
+    "https://platform.ringcentral.com/restapi/v1.0/subscription",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        eventFilters: ["/restapi/v1.0/account/~/presence"],
+
+        deliveryMode: {
+          transportType: "WebHook",
+
+          address: webhookAddress,
+
+          validationToken: env.RC_WEBHOOK_VALIDATION_TOKEN,
+        },
+
+        expiresIn: 604799,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+
+    throw new Error(
+      `RingCentral webhook subscription failed: ${response.status} ${text}`,
+    );
+  }
+
+  return (await response.json()) as RingCentralSubscription;
 }

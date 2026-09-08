@@ -151,3 +151,47 @@ export async function updateRingCentralPresence(
     )
     .run();
 }
+
+export async function updateRingCentralPresenceFromWebhook(
+  env: Env,
+  extensionId: string,
+  presence: {
+    presenceStatus?: string;
+    telephonyStatus?: string;
+    userStatus?: string;
+    dndStatus?: string;
+  },
+): Promise<number> {
+  const result = await env.DB.prepare(
+    `
+		UPDATE staff_presence_status
+		SET
+			current_ringcentral_status =
+				COALESCE(?, current_ringcentral_status),
+
+			ringcentral_telephony_status =
+				COALESCE(?, ringcentral_telephony_status),
+
+			ringcentral_user_status =
+				COALESCE(?, ringcentral_user_status),
+
+			ringcentral_dnd_status =
+				COALESCE(?, ringcentral_dnd_status),
+
+			last_sync_at = CURRENT_TIMESTAMP,
+			last_error = NULL
+
+		WHERE ringcentral_extension_id = ?
+	`,
+  )
+    .bind(
+      presence.presenceStatus ?? null,
+      presence.telephonyStatus ?? null,
+      presence.userStatus ?? null,
+      presence.dndStatus ?? null,
+      extensionId,
+    )
+    .run();
+
+  return result.meta.changes ?? 0;
+}

@@ -31,3 +31,34 @@ export async function markSyncError(env: Env, message: string): Promise<void> {
     .bind(message)
     .run();
 }
+
+export async function saveRingCentralSubscription(
+  env: Env,
+  subscription: {
+    id: string;
+    expirationTime?: string;
+  },
+): Promise<void> {
+  await env.DB.prepare(
+    `
+		UPDATE sync_runtime
+		SET
+			ringcentral_subscription_id = ?,
+			ringcentral_subscription_expires_at = ?
+		WHERE id = 1
+	`,
+  )
+    .bind(subscription.id, subscription.expirationTime ?? null)
+    .run();
+}
+
+export async function markRingCentralWebhookReceived(env: Env): Promise<void> {
+  await env.DB.prepare(
+    `
+		UPDATE sync_runtime
+		SET last_ringcentral_webhook_at =
+			CURRENT_TIMESTAMP
+		WHERE id = 1
+	`,
+  ).run();
+}
