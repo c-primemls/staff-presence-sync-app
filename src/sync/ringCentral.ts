@@ -1,0 +1,99 @@
+import { getRingCentralAccessToken } from "../services/ringCentral";
+
+type RingCentralExtension = {
+  id: number | string;
+  extensionNumber?: string;
+  name?: string;
+  type?: string;
+  status?: string;
+  contact?: {
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+  };
+};
+
+export async function resolveRingCentralExtensionIds(env: Env) {
+  const accessToken = await getRingCentralAccessToken(env);
+
+  const response = await fetch(
+    "https://platform.ringcentral.com/restapi/v1.0/account/~/extension?type=User&status=Enabled&perPage=100",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+
+    throw new Error(
+      `RingCentral extension request failed: ${response.status} ${text}`,
+    );
+  }
+
+  const data = (await response.json()) as {
+    records?: RingCentralExtension[];
+  };
+
+  const { results: users } = await env.DB.prepare(
+    `
+		SELECT
+			id,
+			email,
+			ringcentral_extension_id
+		FROM staff_presence_status
+		ORDER BY id
+	`,
+  ).all<{
+    id: number;
+    email: string;
+    ringcentral_extension_id: string | null;
+  }>();
+
+  const usersByEmail = new Map(
+    users.map((user) => [user.email.toLowerCase(), user]),
+  );
+
+  const updates: D1PreparedStatement[] = [];
+
+  for (const extension of data.records ?? []) {
+    const email = extension.contact?.email?.toLowerCase();
+
+    if (!email) {
+      continue;
+    }
+
+    const user = usersByEmail.get(email);
+
+    if (!user) {
+      continue;
+    }
+
+    const extensionId = String(extension.id);
+
+    if (user.ringcentral_extension_id === extensionId) {
+      continue;
+    }
+
+    updates.push(
+      env.DB.prepare(
+        `
+				UPDATE staff_presence_status
+				SET ringcentral_extension_id = ?
+				WHERE id = ?
+			`,
+      ).bind(extensionId, user.id),
+    );
+  }
+
+  if (updates.length > 0) {
+    await env.DB.batch(updates);
+  }
+
+  return {
+    extensionsReturned: data.records?.length ?? 0,
+    usersMatched: updates.length,
+  };
+}
