@@ -65,7 +65,11 @@ export async function handleRingCentralWebhook(
   env: Env,
   ctx: ExecutionContext,
 ): Promise<Response> {
-  const validationToken = request.headers.get("Validation-Token");
+  const headers = Object.fromEntries(request.headers.entries());
+
+  //   const validationToken = request.headers.get("Validation-Token");
+
+  const validationToken = headers["validation-token"] ?? null;
 
   /*
    * Initial RingCentral webhook validation.
@@ -91,7 +95,9 @@ export async function handleRingCentralWebhook(
    * This is OUR secret configured as
    * deliveryMode.verificationToken.
    */
-  const verificationToken = request.headers.get("Verification-Token");
+  //   const verificationToken = request.headers.get("Verification-Token");
+
+  const verificationToken = headers["verification-token"] ?? null;
 
   if (!verificationToken) {
     console.error(
