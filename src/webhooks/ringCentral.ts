@@ -90,8 +90,39 @@ export async function handleRingCentralWebhook(
    * Normal notifications must contain OUR
    * configured validation token.
    */
-  if (!validationToken || validationToken !== env.RC_WEBHOOK_VALIDATION_TOKEN) {
-    console.error("Rejected RingCentral webhook: invalid validation token.");
+  //   if (!validationToken || validationToken !== env.RC_WEBHOOK_VALIDATION_TOKEN) {
+  //     console.error("Rejected RingCentral webhook: invalid validation token.");
+
+  //     return new Response("Unauthorized", {
+  //       status: 401,
+  //     });
+  //   }
+
+  if (!validationToken) {
+    console.error(
+      "Rejected RingCentral webhook: Validation-Token header is missing.",
+    );
+
+    return new Response("Unauthorized", {
+      status: 401,
+    });
+  }
+
+  if (!env.RC_WEBHOOK_VALIDATION_TOKEN) {
+    console.error(
+      "Rejected RingCentral webhook: RC_WEBHOOK_VALIDATION_TOKEN secret is missing from Worker environment.",
+    );
+
+    return new Response("Unauthorized", {
+      status: 401,
+    });
+  }
+
+  if (validationToken !== env.RC_WEBHOOK_VALIDATION_TOKEN) {
+    console.error("Rejected RingCentral webhook: validation token mismatch.", {
+      receivedLength: validationToken.length,
+      expectedLength: env.RC_WEBHOOK_VALIDATION_TOKEN.length,
+    });
 
     return new Response("Unauthorized", {
       status: 401,
