@@ -13,7 +13,7 @@
 	],
 
 	"triggers": {
-		"crons": ["*/3 * * * *"]
+		"crons": ["* * * * *"]
 	},
 
 	"observability": {
