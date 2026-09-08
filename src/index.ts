@@ -6,7 +6,7 @@ import { markCronStarted, markSyncError, markSyncSuccess } from "./db/runtime";
 
 import { syncTeamsPresence } from "./sync/teams";
 
-import { getRingCentralAccessToken } from "./services/ringCentral";
+import { getRingCentralAccessToken } from "./services/ringCentral/auth/getRingCentralAccessToken";
 
 import {
   resolveRingCentralExtensionIds,
@@ -15,10 +15,9 @@ import {
 
 import { getErrorMessage } from "./utils/errors";
 
-import {
-  createRingCentralWebhookSubscription,
-  deleteRingCentralWebhookSubscription,
-} from "./services/ringCentral";
+import { createRingCentralWebhookSubscription } from "./services/ringCentral/subscriptions/createRingCentralWebhookSubscription";
+
+import { deleteRingCentralWebhookSubscription } from "./services/ringCentral/subscriptions/deleteRingCentralWebhookSubscription";
 
 import {
   renewRingCentralWebhookIfNeeded,
@@ -28,6 +27,10 @@ import {
 import { saveRingCentralSubscription } from "./db/runtime";
 
 import { handleRingCentralWebhook } from "./webhooks/ringCentral";
+
+import { setTeamsInCallPresence } from "./services/microsoftGraph/presence/setTeamsInCallPresence";
+
+import { clearTeamsPresence } from "./services/microsoftGraph/presence/clearTeamsPresence";
 
 export default {
   async fetch(request, env, ctx) {
@@ -227,6 +230,124 @@ export default {
           {
             success: false,
             error: message,
+          },
+          {
+            status: 500,
+          },
+        );
+      }
+    }
+
+    if (url.pathname === "/api/test-teams-in-call") {
+      if (request.method !== "POST") {
+        return new Response("Method Not Allowed", {
+          status: 405,
+          headers: {
+            Allow: "POST",
+          },
+        });
+      }
+
+      try {
+        const user = await env.DB.prepare(
+          `
+        SELECT
+          email,
+          entra_user_id
+        FROM staff_presence_status
+        WHERE entra_user_id IS NOT NULL
+          AND entra_user_id != ''
+        ORDER BY id
+        LIMIT 1
+      `,
+        ).first<{
+          email: string;
+          entra_user_id: string;
+        }>();
+
+        if (!user) {
+          return Response.json(
+            {
+              success: false,
+              error: "No user with an Entra ID was found.",
+            },
+            {
+              status: 404,
+            },
+          );
+        }
+
+        await setTeamsInCallPresence(env, user.entra_user_id);
+
+        return Response.json({
+          success: true,
+          email: user.email,
+          presence: "Busy / InACall",
+        });
+      } catch (error) {
+        return Response.json(
+          {
+            success: false,
+            error: getErrorMessage(error),
+          },
+          {
+            status: 500,
+          },
+        );
+      }
+    }
+
+    if (url.pathname === "/api/test-teams-clear") {
+      if (request.method !== "POST") {
+        return new Response("Method Not Allowed", {
+          status: 405,
+          headers: {
+            Allow: "POST",
+          },
+        });
+      }
+
+      try {
+        const user = await env.DB.prepare(
+          `
+        SELECT
+          email,
+          entra_user_id
+        FROM staff_presence_status
+        WHERE entra_user_id IS NOT NULL
+          AND entra_user_id != ''
+        ORDER BY id
+        LIMIT 1
+      `,
+        ).first<{
+          email: string;
+          entra_user_id: string;
+        }>();
+
+        if (!user) {
+          return Response.json(
+            {
+              success: false,
+              error: "No user with an Entra ID was found.",
+            },
+            {
+              status: 404,
+            },
+          );
+        }
+
+        await clearTeamsPresence(env, user.entra_user_id);
+
+        return Response.json({
+          success: true,
+          email: user.email,
+          presenceSessionCleared: true,
+        });
+      } catch (error) {
+        return Response.json(
+          {
+            success: false,
+            error: getErrorMessage(error),
           },
           {
             status: 500,
