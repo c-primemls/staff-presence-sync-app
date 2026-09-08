@@ -1,5 +1,12 @@
 import { getRingCentralAccessToken } from "../services/ringCentral";
 
+import {
+  getRingCentralSyncUsers,
+  updateRingCentralPresence,
+} from "../db/presence";
+
+import { getRingCentralPresence } from "../services/ringCentral";
+
 type RingCentralExtension = {
   id: number | string;
   extensionNumber?: string;
@@ -95,5 +102,41 @@ export async function resolveRingCentralExtensionIds(env: Env) {
   return {
     extensionsReturned: data.records?.length ?? 0,
     usersMatched: updates.length,
+  };
+}
+
+export async function syncRingCentralPresence(env: Env) {
+  const users = await getRingCentralSyncUsers(env);
+
+  let usersUpdated = 0;
+
+  for (const user of users) {
+    try {
+      const presence = await getRingCentralPresence(
+        env,
+        user.ringcentral_extension_id,
+      );
+
+      await updateRingCentralPresence(env, user.id, presence);
+
+      usersUpdated++;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      await env.DB.prepare(
+        `
+				UPDATE staff_presence_status
+				SET last_error = ?
+				WHERE id = ?
+			`,
+      )
+        .bind(message, user.id)
+        .run();
+    }
+  }
+
+  return {
+    usersChecked: users.length,
+    usersUpdated,
   };
 }

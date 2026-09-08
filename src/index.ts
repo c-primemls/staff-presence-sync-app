@@ -8,7 +8,10 @@ import { syncTeamsPresence } from "./sync/teams";
 
 import { getRingCentralAccessToken } from "./services/ringCentral";
 
-import { resolveRingCentralExtensionIds } from "./sync/ringCentral";
+import {
+  resolveRingCentralExtensionIds,
+  syncRingCentralPresence,
+} from "./sync/ringCentral";
 
 import { getErrorMessage } from "./utils/errors";
 
@@ -94,6 +97,38 @@ export default {
           {
             success: false,
             error: getErrorMessage(error),
+          },
+          {
+            status: 500,
+          },
+        );
+      }
+    }
+
+    if (url.pathname === "/api/sync-ringcentral") {
+      if (request.method !== "POST") {
+        return new Response("Method Not Allowed", {
+          status: 405,
+          headers: {
+            Allow: "POST",
+          },
+        });
+      }
+
+      try {
+        const result = await syncRingCentralPresence(env);
+
+        return Response.json({
+          success: true,
+          ...result,
+        });
+      } catch (error) {
+        const message = getErrorMessage(error);
+
+        return Response.json(
+          {
+            success: false,
+            error: message,
           },
           {
             status: 500,
