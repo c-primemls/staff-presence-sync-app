@@ -1,11 +1,11 @@
-import { getRingCentralAccessToken } from "../services/ringCentral";
+import { getRingCentralAccessToken } from "../services/ringCentral/auth/getRingCentralAccessToken";
 
 import {
   getRingCentralSyncUsers,
   updateRingCentralPresence,
 } from "../db/presence";
 
-import { getRingCentralPresence } from "../services/ringCentral";
+import { getRingCentralPresence } from "../services/ringCentral/presence/getRingCentralPresence";
 
 type RingCentralExtension = {
   id: number | string;

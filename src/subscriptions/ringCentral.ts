@@ -1,4 +1,4 @@
-import { renewRingCentralWebhookSubscription } from "../services/ringCentral";
+import { renewRingCentralWebhookSubscription } from "../services/ringCentral/subscriptions/renewRingCentralWebhookSubscription";
 
 import {
   getRingCentralSubscriptionRuntime,
