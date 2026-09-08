@@ -65,27 +65,16 @@ export async function handleRingCentralWebhook(
   env: Env,
   ctx: ExecutionContext,
 ): Promise<Response> {
-  const validationToken = request.headers.get("Validation-Token");
-
-  const rawBody = await request.text();
+  const validationToken = request.headers.get("validation-token");
 
   /*
-   * Subscription validation handshake.
+   * RingCentral subscription validation handshake.
    *
-   * RingCentral sends an empty request containing
-   * a Validation-Token. We echo that exact value.
+   * RingCentral sends Validation-Token when the
+   * subscription is initially created.
+   * Echo it back and stop processing.
    */
-  if (!rawBody.trim()) {
-    if (!validationToken) {
-      console.error(
-        "RingCentral validation request contained no Validation-Token.",
-      );
-
-      return new Response("Bad Request", {
-        status: 400,
-      });
-    }
-
+  if (validationToken) {
     console.log("RingCentral webhook validation request received.");
 
     return new Response(null, {
@@ -98,40 +87,18 @@ export async function handleRingCentralWebhook(
   }
 
   /*
-   * Normal notification.
+   * Normal webhook event.
    *
-   * For Subscription API webhooks, RingCentral
-   * sends the validationToken we supplied when
-   * creating the subscription.
+   * Normal presence notifications do NOT need
+   * to contain the handshake Validation-Token.
    */
-  if (!validationToken) {
-    console.error(
-      "Rejected RingCentral webhook: Validation-Token header is missing.",
-    );
+  const rawBody = await request.text();
 
-    return new Response("Unauthorized", {
-      status: 401,
-    });
-  }
+  if (!rawBody.trim()) {
+    console.error("RingCentral webhook contained an empty body.");
 
-  if (!env.RC_WEBHOOK_VALIDATION_TOKEN) {
-    console.error(
-      "RC_WEBHOOK_VALIDATION_TOKEN is missing from the Worker environment.",
-    );
-
-    return new Response("Server configuration error", {
-      status: 500,
-    });
-  }
-
-  if (validationToken !== env.RC_WEBHOOK_VALIDATION_TOKEN) {
-    console.error("Rejected RingCentral webhook: validation token mismatch.", {
-      receivedLength: validationToken.length,
-      expectedLength: env.RC_WEBHOOK_VALIDATION_TOKEN.length,
-    });
-
-    return new Response("Unauthorized", {
-      status: 401,
+    return new Response("Bad Request", {
+      status: 400,
     });
   }
 
@@ -144,6 +111,34 @@ export async function handleRingCentralWebhook(
 
     return new Response("Invalid JSON", {
       status: 400,
+    });
+  }
+
+  /*
+   * Verify the notification belongs to the
+   * subscription that this Worker created.
+   */
+  const runtime = await env.DB.prepare(
+    `
+      SELECT
+        ringcentral_subscription_id
+      FROM sync_runtime
+      WHERE id = 1
+    `,
+  ).first<{
+    ringcentral_subscription_id: string | null;
+  }>();
+
+  if (
+    runtime?.ringcentral_subscription_id &&
+    event.subscriptionId !== runtime.ringcentral_subscription_id
+  ) {
+    console.error("Rejected RingCentral webhook: subscription ID mismatch.", {
+      receivedSubscriptionId: event.subscriptionId ?? null,
+    });
+
+    return new Response("Unauthorized", {
+      status: 401,
     });
   }
 
