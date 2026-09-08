@@ -62,3 +62,19 @@ export async function markRingCentralWebhookReceived(env: Env): Promise<void> {
 	`,
   ).run();
 }
+
+export async function getRingCentralSubscriptionRuntime(env: Env) {
+  return await env.DB.prepare(
+    `
+    SELECT
+      ringcentral_subscription_id,
+      ringcentral_subscription_expires_at
+    FROM sync_runtime
+    WHERE id = 1
+  `,
+  ).first<{
+    ringcentral_subscription_id: string | null;
+
+    ringcentral_subscription_expires_at: string | null;
+  }>();
+}

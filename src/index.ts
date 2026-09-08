@@ -20,6 +20,11 @@ import {
   deleteRingCentralWebhookSubscription,
 } from "./services/ringCentral";
 
+import {
+  renewRingCentralWebhookIfNeeded,
+  renewRingCentralWebhookNow,
+} from "./subscriptions/ringCentral";
+
 import { saveRingCentralSubscription } from "./db/runtime";
 
 import { handleRingCentralWebhook } from "./webhooks/ringCentral";
@@ -150,45 +155,6 @@ export default {
       }
     }
 
-    // if (url.pathname === "/api/create-ringcentral-webhook") {
-    //   if (request.method !== "POST") {
-    //     return new Response("Method Not Allowed", {
-    //       status: 405,
-    //       headers: {
-    //         Allow: "POST",
-    //       },
-    //     });
-    //   }
-
-    //   try {
-    //     const subscription = await createRingCentralWebhookSubscription(
-    //       env,
-    //       "https://staff-presence-sync-app.clayton-ac3.workers.dev/webhooks/ringcentral",
-    //     );
-
-    //     await saveRingCentralSubscription(env, subscription);
-
-    //     return Response.json({
-    //       success: true,
-    //       subscription,
-    //     });
-    //   } catch (error) {
-    //     const message = getErrorMessage(error);
-
-    //     console.error("RingCentral webhook creation failed:", message);
-
-    //     return Response.json(
-    //       {
-    //         success: false,
-    //         error: message,
-    //       },
-    //       {
-    //         status: 500,
-    //       },
-    //     );
-    //   }
-    // }
-
     if (url.pathname === "/api/create-ringcentral-webhook") {
       try {
         const runtime = await env.DB.prepare(
@@ -222,6 +188,40 @@ export default {
         });
       } catch (error) {
         const message = getErrorMessage(error);
+
+        return Response.json(
+          {
+            success: false,
+            error: message,
+          },
+          {
+            status: 500,
+          },
+        );
+      }
+    }
+
+    if (url.pathname === "/api/renew-ringcentral-webhook") {
+      if (request.method !== "POST") {
+        return new Response("Method Not Allowed", {
+          status: 405,
+          headers: {
+            Allow: "POST",
+          },
+        });
+      }
+
+      try {
+        const result = await renewRingCentralWebhookNow(env);
+
+        return Response.json({
+          success: true,
+          ...result,
+        });
+      } catch (error) {
+        const message = getErrorMessage(error);
+
+        console.error("Manual RingCentral webhook renewal failed:", message);
 
         return Response.json(
           {
@@ -298,6 +298,21 @@ export default {
       console.error("Scheduled Teams sync failed:", message);
 
       throw error;
+    }
+
+    try {
+      const renewalResult = await renewRingCentralWebhookIfNeeded(env);
+
+      if (renewalResult.renewed) {
+        console.log(
+          "RingCentral webhook subscription renewed:",
+          JSON.stringify(renewalResult),
+        );
+      }
+    } catch (error) {
+      const message = getErrorMessage(error);
+
+      console.error("RingCentral webhook renewal failed:", message);
     }
   },
 } satisfies ExportedHandler<Env>;
