@@ -86,6 +86,12 @@ export async function createRingCentralWebhookSubscription(
   env: Env,
   webhookAddress: string,
 ): Promise<RingCentralSubscription> {
+  if (!env.RC_WEBHOOK_VALIDATION_TOKEN) {
+    throw new Error(
+      "RC_WEBHOOK_VALIDATION_TOKEN is missing from the Worker environment.",
+    );
+  }
+
   const accessToken = await getRingCentralAccessToken(env);
 
   const response = await fetch(
