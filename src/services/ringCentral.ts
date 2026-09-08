@@ -104,7 +104,7 @@ export async function createRingCentralWebhookSubscription(
 
           address: webhookAddress,
 
-          validationToken: env.RC_WEBHOOK_VALIDATION_TOKEN,
+          validationToken: env.RC_WEBHOOK_VERIFICATION_TOKEN,
         },
 
         expiresIn: 604799,
@@ -121,4 +121,29 @@ export async function createRingCentralWebhookSubscription(
   }
 
   return (await response.json()) as RingCentralSubscription;
+}
+
+export async function deleteRingCentralWebhookSubscription(
+  env: Env,
+  subscriptionId: string,
+): Promise<void> {
+  const accessToken = await getRingCentralAccessToken(env);
+
+  const response = await fetch(
+    `https://platform.ringcentral.com/restapi/v1.0/subscription/${subscriptionId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+
+  if (!response.ok && response.status !== 404) {
+    const text = await response.text();
+
+    throw new Error(
+      `RingCentral subscription delete failed: ${response.status} ${text}`,
+    );
+  }
 }

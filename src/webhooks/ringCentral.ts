@@ -65,18 +65,17 @@ export async function handleRingCentralWebhook(
   env: Env,
   ctx: ExecutionContext,
 ): Promise<Response> {
-  /*
-   * RingCentral performs this validation request
-   * when the webhook subscription is created.
-   *
-   * It sends a Validation-Token header with no
-   * notification payload. We must echo it back.
-   */
   const validationToken = request.headers.get("Validation-Token");
 
-  const rawBody = await request.text();
+  /*
+   * Initial RingCentral webhook validation.
+   *
+   * RingCentral generates this token.
+   * We simply echo it back.
+   */
+  if (validationToken) {
+    console.log("RingCentral webhook validation request received.");
 
-  if (validationToken && rawBody.trim() === "") {
     return new Response(null, {
       status: 200,
       headers: {
@@ -87,20 +86,16 @@ export async function handleRingCentralWebhook(
   }
 
   /*
-   * Normal notifications must contain OUR
-   * configured validation token.
+   * Normal webhook notification.
+   *
+   * This is OUR secret configured as
+   * deliveryMode.verificationToken.
    */
-  //   if (!validationToken || validationToken !== env.RC_WEBHOOK_VALIDATION_TOKEN) {
-  //     console.error("Rejected RingCentral webhook: invalid validation token.");
+  const verificationToken = request.headers.get("Verification-Token");
 
-  //     return new Response("Unauthorized", {
-  //       status: 401,
-  //     });
-  //   }
-
-  if (!validationToken) {
+  if (!verificationToken) {
     console.error(
-      "Rejected RingCentral webhook: Validation-Token header is missing.",
+      "Rejected RingCentral webhook: Verification-Token header is missing.",
     );
 
     return new Response("Unauthorized", {
@@ -108,9 +103,13 @@ export async function handleRingCentralWebhook(
     });
   }
 
-  if (!env.RC_WEBHOOK_VALIDATION_TOKEN) {
+  if (verificationToken !== env.RC_WEBHOOK_VERIFICATION_TOKEN) {
     console.error(
-      "Rejected RingCentral webhook: RC_WEBHOOK_VALIDATION_TOKEN secret is missing from Worker environment.",
+      "Rejected RingCentral webhook: verification token mismatch.",
+      {
+        receivedLength: verificationToken.length,
+        expectedLength: env.RC_WEBHOOK_VERIFICATION_TOKEN?.length ?? 0,
+      },
     );
 
     return new Response("Unauthorized", {
@@ -118,16 +117,7 @@ export async function handleRingCentralWebhook(
     });
   }
 
-  if (validationToken !== env.RC_WEBHOOK_VALIDATION_TOKEN) {
-    console.error("Rejected RingCentral webhook: validation token mismatch.", {
-      receivedLength: validationToken.length,
-      expectedLength: env.RC_WEBHOOK_VALIDATION_TOKEN.length,
-    });
-
-    return new Response("Unauthorized", {
-      status: 401,
-    });
-  }
+  const rawBody = await request.text();
 
   if (!rawBody.trim()) {
     return new Response(null, {
@@ -145,10 +135,6 @@ export async function handleRingCentralWebhook(
     });
   }
 
-  /*
-   * Respond immediately to RingCentral and
-   * continue the D1 work in the background.
-   */
   ctx.waitUntil(processRingCentralWebhook(env, event));
 
   return new Response(null, {

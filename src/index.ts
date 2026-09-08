@@ -15,7 +15,10 @@ import {
 
 import { getErrorMessage } from "./utils/errors";
 
-import { createRingCentralWebhookSubscription } from "./services/ringCentral";
+import {
+  createRingCentralWebhookSubscription,
+  deleteRingCentralWebhookSubscription,
+} from "./services/ringCentral";
 
 import { saveRingCentralSubscription } from "./db/runtime";
 
@@ -147,17 +150,65 @@ export default {
       }
     }
 
-    if (url.pathname === "/api/create-ringcentral-webhook") {
-      if (request.method !== "POST") {
-        return new Response("Method Not Allowed", {
-          status: 405,
-          headers: {
-            Allow: "POST",
-          },
-        });
-      }
+    // if (url.pathname === "/api/create-ringcentral-webhook") {
+    //   if (request.method !== "POST") {
+    //     return new Response("Method Not Allowed", {
+    //       status: 405,
+    //       headers: {
+    //         Allow: "POST",
+    //       },
+    //     });
+    //   }
 
+    //   try {
+    //     const subscription = await createRingCentralWebhookSubscription(
+    //       env,
+    //       "https://staff-presence-sync-app.clayton-ac3.workers.dev/webhooks/ringcentral",
+    //     );
+
+    //     await saveRingCentralSubscription(env, subscription);
+
+    //     return Response.json({
+    //       success: true,
+    //       subscription,
+    //     });
+    //   } catch (error) {
+    //     const message = getErrorMessage(error);
+
+    //     console.error("RingCentral webhook creation failed:", message);
+
+    //     return Response.json(
+    //       {
+    //         success: false,
+    //         error: message,
+    //       },
+    //       {
+    //         status: 500,
+    //       },
+    //     );
+    //   }
+    // }
+
+    if (url.pathname === "/api/create-ringcentral-webhook") {
       try {
+        const runtime = await env.DB.prepare(
+          `
+				SELECT
+					ringcentral_subscription_id
+				FROM sync_runtime
+				WHERE id = 1
+			`,
+        ).first<{
+          ringcentral_subscription_id: string | null;
+        }>();
+
+        if (runtime?.ringcentral_subscription_id) {
+          await deleteRingCentralWebhookSubscription(
+            env,
+            runtime.ringcentral_subscription_id,
+          );
+        }
+
         const subscription = await createRingCentralWebhookSubscription(
           env,
           "https://staff-presence-sync-app.clayton-ac3.workers.dev/webhooks/ringcentral",
@@ -171,8 +222,6 @@ export default {
         });
       } catch (error) {
         const message = getErrorMessage(error);
-
-        console.error("RingCentral webhook creation failed:", message);
 
         return Response.json(
           {
